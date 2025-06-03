@@ -38,7 +38,7 @@ architecture RTL of key_gen_wrapper is
 	signal output_h_valid : std_logic;
 	signal output_f       : std_logic_vector(1 downto 0);
 	signal output_f_valid : std_logic;
-	signal output_g_recip : std_logic_vector(1 downto 0);
+	signal output_g_recip : std_logic_vector(3 downto 0);
 	signal output_g_valid : std_logic;
 
 	signal done_pk      : std_logic;
@@ -305,7 +305,7 @@ begin
 			done         => done_f
 		);
 
-	encode_R3_inst_g : entity work.encode_R3(RTL2)
+	encode_R3_inst_g : entity work.encode_R3_from_parallel(RTL)
 		port map(
 			clock        => clock,
 			reset        => reset,

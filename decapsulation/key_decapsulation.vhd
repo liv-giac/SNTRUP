@@ -92,6 +92,7 @@ begin
 			case state_decap is
 				when idle =>
 					if start = '1' then
+						report "Key decapsulation started";
 						state_decap <= mult_Rq;
 					end if;
 					counter <= p - 1;
@@ -146,7 +147,7 @@ begin
 					end if;
 				when done_state =>
 					done <= '1';
-
+					report "Key decapsulation done";
 					state_decap <= idle;
 			end case;
 		end if;

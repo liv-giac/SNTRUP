@@ -73,9 +73,11 @@ begin
 		elsif rising_edge(clock) then
 			case state_weight is
 				when reset_state =>
+						report "Resetting weight generation";
 					state_weight <= init_state;
 				when init_state =>
 					if start = '1' then
+						report "Starting weight generation";
 						state_weight <= generating_elements;
 					else
 						state_weight <= init_state;
@@ -102,7 +104,9 @@ begin
 					random_enable           <= '0';
 				when sorting =>
 					if sorting_done = '1' then
+						report "Sorting done, now rounding";
 						state_weight            <= rounding;
+						
 						sorting_start    <= '0';
 						rounding_counter <= 0;
 					else
@@ -111,6 +115,7 @@ begin
 
 					end if;
 				when rounding =>
+				
 					if rounding_counter = p - 1 then
 						state_weight <= done_state;
 					else
@@ -119,6 +124,7 @@ begin
 					small_weights_valid <= '1';
 					rounding_counter    <= rounding_counter + 1;
 				when done_state =>
+					report "Rounding done";
 					small_weights_valid <= '0';
 					state_weight               <= init_state;
 					sorting_start       <= '0';

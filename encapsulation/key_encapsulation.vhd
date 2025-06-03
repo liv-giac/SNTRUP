@@ -94,7 +94,9 @@ begin
 		elsif rising_edge(clock) then
 			case state_encap is
 				when init_state =>
+					
 					if new_public_key = '1' and start_encap = '0' then
+						report "Key encapsulation started";
 						state_encap <= write_public_key;
 					end if;
 					if new_public_key = '1' and start_encap = '1' then
@@ -126,6 +128,7 @@ begin
 					ready <= '0';
 				when ready_state =>
 					if start_encap = '1' AND new_public_key = '0' then
+
 						state_encap         <= get_small_state;
 						small_weights_start <= '1';
 						p_counter           <= 0;
@@ -162,6 +165,7 @@ begin
 				when done_state =>
 					if rq_round_output_valid = '0' then
 						state_encap <= ready_state;
+						report "Key encapsulation done";
 						done        <= '1';
 					end if;
 			end case;

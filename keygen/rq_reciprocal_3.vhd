@@ -33,7 +33,8 @@ architecture RTL of rq_reciprocal_3 is
 		variable ai : integer := a;
 	begin
 		for i in 1 to q - 3 loop
-			report "ai= " & integer'image(ai) & " i=" & integer'image(i);
+	
+		    report "ai= " & integer'image(ai) & " i=" & integer'image(i);
 			ai := ai * a;
 			while ai >= integer(ceil(real(q) / real(2))) loop
 				ai := ai - q;
@@ -169,10 +170,12 @@ begin
 					done                 <= '0';
 				when ready_state =>
 					if start = '1' then
+						report "starting rq reset ram";
 						state_rq_reciprocal <= reset_ram;
 						ready               <= '0';
 					else
 						state_rq_reciprocal <= ready_state;
+						
 						ready               <= '1';
 					end if;
 					bram_f_write_a <= '0';
@@ -221,12 +224,15 @@ begin
 						state_rq_reciprocal <= reset_ram;
 
 					else
+						
 						state_rq_reciprocal <= running_state;
 					end if;
 				when running_state =>
 					if counter >= loop_limit then
+						
 						state_rq_reciprocal <= calc_reciprocal_init;
 					else
+					
 						state_rq_reciprocal <= swap_state_1;
 					end if;
 					bram_g_address_a <= (others => '0');
@@ -321,15 +327,19 @@ begin
 					bram_v_address_a <= (others => '0');
 					bram_r_address_a <= (others => '0');
 				when calc_reciprocal_init =>
+					
 					state_rq_reciprocal <= calc_reciprocal_init_2;
 					bram_f_address_a    <= (others => '0');
 				when calc_reciprocal_init_2 =>
 					state_rq_reciprocal <= calc_reciprocal;
+					
 				when calc_reciprocal =>
+				
 					reciprocal_start <= '1';
 					reciprocal_input <= bram_f_data_out_a;
 					counter_vr       <= 0;
 					if reciprocal_done = '1' then
+						report "output data";
 						state_rq_reciprocal <= output_data;
 						reciprocal_start    <= '0';
 					else
@@ -342,6 +352,7 @@ begin
 					if counter_vr < p then
 						state_rq_reciprocal <= output_data;
 					else
+						report "finished rq internal, am i waiting";
 						state_rq_reciprocal  <= done_state;
 						output_valid_pipe(0) <= '0';
 					end if;
