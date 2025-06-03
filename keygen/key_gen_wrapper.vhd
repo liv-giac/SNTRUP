@@ -19,7 +19,7 @@ entity key_gen_wrapper is
 		private_key_out        : out std_logic_vector(7 downto 0);
 		private_key_out_valid  : out std_logic;
 		random_small_enable    : out std_logic;
-		random_small_poly      : in  std_logic_vector(1 downto 0);
+		random_small_poly      : in  std_logic_vector(3 downto 0);
 		random_enable          : out std_logic;
 		random_output          : in  std_logic_vector(31 downto 0);
 		to_sha                 : out sha_record_in_type;
@@ -38,7 +38,7 @@ architecture RTL of key_gen_wrapper is
 	signal output_h_valid : std_logic;
 	signal output_f       : std_logic_vector(1 downto 0);
 	signal output_f_valid : std_logic;
-	signal output_g_recip : std_logic_vector(1 downto 0);
+	signal output_g_recip : std_logic_vector(3 downto 0);
 	signal output_g_valid : std_logic;
 
 	signal done_pk      : std_logic;
@@ -305,7 +305,7 @@ begin
 			done         => done_f
 		);
 
-	encode_R3_inst_g : entity work.encode_R3(RTL2)
+	encode_R3_inst_g : entity work.encode_R3_from_parallel(RTL)
 		port map(
 			clock        => clock,
 			reset        => reset,

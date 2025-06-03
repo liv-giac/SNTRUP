@@ -17,6 +17,7 @@ synthesis:
 	 ../encoding/division_32_by_const.vhd \
 	 ../encoding/div_mod_pipeline.vhd \
 	 ../encoding/encode_R3.vhd \
+	 ../encoding/encode_R3_parallel.vhd \
 	 ../encoding/division_32_by_const.vhd \
 	 ../encoding/div_mod_pipeline.vhd \
  	 ../encoding/decode_Rq.vhd \
@@ -74,6 +75,7 @@ elaborate:
 	ghdl -e ${GHDLFLAGS} modq_reciprocal
 	ghdl -e ${GHDLFLAGS} rq_reciprocal_3
 	ghdl -e ${GHDLFLAGS} encode_R3
+	ghdl -e ${GHDLFLAGS} encode_R3_from_parallel
 	ghdl -e ${GHDLFLAGS} key_gen_wrapper
 	ghdl -e ${GHDLFLAGS} rq_reciprocal_3
 	ghdl -e ${GHDLFLAGS} division_32_by_const

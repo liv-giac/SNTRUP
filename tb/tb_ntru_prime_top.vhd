@@ -343,6 +343,7 @@ begin
 			if line_v'length > (p + p + Small_bytes / 4 + 1 + 50) * 8 then
 				for i in 0 to p + p + p - 1 + Small_bytes / 4 + 1 loop
 					read(line_v, temp8bit);
+
 					random_output <= to_std_logic_vector(temp8bit);
 					wait until rising_edge(clock) and random_enable = '1';
 					wait for 1 ns;

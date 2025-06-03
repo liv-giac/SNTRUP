@@ -19,10 +19,10 @@ entity key_generation is
 		output_h_ack                : in  std_logic;
 		output_f                    : out std_logic_vector(1 downto 0);
 		output_f_valid              : out std_logic;
-		output_g_recip              : out std_logic_vector(1 downto 0);
+		output_g_recip              : out std_logic_vector(3 downto 0);
 		output_g_valid              : out std_logic;
 		random_small_enable         : out std_logic;
-		random_small_poly           : in  std_logic_vector(1 downto 0);
+		random_small_poly           : in  std_logic_vector(3 downto 0);
 		small_weights_random_enable : out std_logic;
 		small_weights_random_output : in  std_logic_vector(31 downto 0);
 		to_rq_mult                  : out rq_multiplication_in_type;
@@ -33,7 +33,7 @@ entity key_generation is
 end entity key_generation;
 
 architecture RTL of key_generation is
-
+	constant s : integer := 3;
 	type state_type is (init_state, gen_g, gen_g_done, inv_g, wait_inv_g, check_inv_g, gen_f, wait_gen_f, inv_f, inv_f_done1, inv_f_done2, mult_fg_init, mult_fg, done_state);
 	signal state_key_gen : state_type;
 
@@ -43,8 +43,8 @@ architecture RTL of key_generation is
 	signal random_small_counter_delay : std_logic_vector(p_num_bits - 1 downto 0);
 
 	signal r3_recip_start         : std_logic;
-	signal r3_recip_poly_in       : std_logic_vector(1 downto 0);
-	signal r3_recip_poly_out      : std_logic_vector(1 downto 0);
+	signal r3_recip_poly_in       : std_logic_vector(3 downto 0);
+	signal r3_recip_poly_out      : std_logic_vector(3 downto 0);
 	signal r3_recip_done          : std_logic;
 	signal r3_recip_is_invertable : std_logic;
 	signal r3_recip_ready         : std_logic;
@@ -74,9 +74,9 @@ architecture RTL of key_generation is
 	signal rq_mult_bram_f_address_b  : std_logic_vector(p_num_bits - 1 downto 0);
 	signal rq_mult_bram_f_data_out_b : std_logic_vector(q_num_bits - 1 downto 0);
 	signal rq_mult_bram_g_address_a  : std_logic_vector(p_num_bits - 1 downto 0);
-	signal rq_mult_bram_g_data_out_a : std_logic_vector(2 - 1 downto 0);
+	signal rq_mult_bram_g_data_out_a : std_logic_vector(1 downto 0);
 	signal rq_mult_bram_g_address_b  : std_logic_vector(p_num_bits - 1 downto 0);
-	signal rq_mult_bram_g_data_out_b : std_logic_vector(2 - 1 downto 0);
+	signal rq_mult_bram_g_data_out_b : std_logic_vector(1 downto 0);
 
 	signal bram_f_address_a  : std_logic_vector(p_num_bits - 1 downto 0);
 	signal bram_f_write_a    : std_logic;
@@ -89,12 +89,12 @@ architecture RTL of key_generation is
 
 	signal bram_g_address_a  : std_logic_vector(p_num_bits - 1 downto 0);
 	signal bram_g_write_a    : std_logic;
-	signal bram_g_data_in_a  : std_logic_vector(2 - 1 downto 0);
-	signal bram_g_data_out_a : std_logic_vector(2 - 1 downto 0);
+	signal bram_g_data_in_a  : std_logic_vector(s downto 0);
+	signal bram_g_data_out_a : std_logic_vector(s downto 0);
 	signal bram_g_address_b  : std_logic_vector(p_num_bits - 1 downto 0);
 	signal bram_g_write_b    : std_logic;
-	signal bram_g_data_in_b  : std_logic_vector(2 - 1 downto 0);
-	signal bram_g_data_out_b : std_logic_vector(2 - 1 downto 0);
+	signal bram_g_data_in_b  : std_logic_vector(s downto 0);
+	signal bram_g_data_out_b : std_logic_vector(s downto 0);
 
 begin
 	fsm_process : process(clock, reset) is
@@ -120,7 +120,8 @@ begin
 					ready <= '1';
 					done  <= '0';
 				when gen_g =>
-					if random_small_counter = p - 1 then
+					report "  generating g element "& integer'image(random_small_counter+1);
+					if random_small_counter = p/2 then
 						state_key_gen <= gen_g_done;
 					else
 						state_key_gen <= gen_g;
@@ -131,6 +132,7 @@ begin
 					r3_recip_start          <= '0';
 				when gen_g_done =>
 					state_key_gen           <= inv_g;
+					report "Starting inv_g-----------------"; 
 					random_small_enable_out <= '0';
 					random_small_counter    <= 0;
 				when inv_g =>
@@ -140,9 +142,11 @@ begin
 					if r3_recip_done = '0' then
 						state_key_gen <= wait_inv_g;
 					else
+						report "Done inv_g------------------";
 						if r3_recip_is_invertable = '1' then
 							state_key_gen <= inv_f;
 						else
+						report "g is not invertible";
 							state_key_gen <= check_inv_g;
 						end if;
 					end if;
@@ -171,6 +175,7 @@ begin
 						state_key_gen <= inv_f_done1;
 					end if;
 				when inv_f_done1 =>
+					report "Done inv_f";
 					state_key_gen <= inv_f_done2;
 				when inv_f_done2 =>
 					state_key_gen <= mult_fg_init;
@@ -238,9 +243,9 @@ begin
 
 	bram_g_write_b <= '0';
 	bram_f_write_b <= '0';
-
-	rq_mult_bram_g_data_out_a <= bram_g_data_out_a;
-	rq_mult_bram_g_data_out_b <= bram_g_data_out_b;
+ ------TEMP
+	rq_mult_bram_g_data_out_a <= bram_g_data_out_a(1 downto 0);
+	rq_mult_bram_g_data_out_b <= bram_g_data_out_b(1 downto 0);
 
 	output_g_valid <= r3_recip_output_valid and r3_recip_is_invertable;
 	output_g_recip <= r3_recip_poly_out;
@@ -314,7 +319,7 @@ begin
 	block_ram_g : entity work.block_ram
 		generic map(
 			ADDRESS_WIDTH => p_num_bits,
-			DATA_WIDTH    => 2
+			DATA_WIDTH    => 4
 		)
 		port map(
 			clock      => clock,
