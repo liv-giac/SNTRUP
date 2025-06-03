@@ -287,7 +287,7 @@ begin
 			keygen_test(start_key_gen);
 		end if;
 
-		if kat_num < 2 then
+		if kat_num < 50 then
 			kat_num <= kat_num + 1;
 		else
 			assert false report "Test: OK" severity failure;

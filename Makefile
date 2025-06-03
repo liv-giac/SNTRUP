@@ -22,7 +22,6 @@ synthesis:
  	 ../encoding/decode_Rq.vhd \
 	 ../encoding/decode_R3.vhd \
 	 ../encoding/encode_R3.vhd \
-	 ../encoding/encode_R3_from_parallel.vhd \
 	 ../encoding/encode_Rq.vhd \
 	 ../multiplication/rq_mult_generic_3bit.vhd \
 	 ../multiplication/rq_mult_generic_4bit.vhd \
@@ -46,7 +45,6 @@ synthesis:
 	 ../keygen/bram_rq_reciprocal_3.vhd \
 	 ../keygen/modq_reciprocal.vhd \
 	 ../keygen/r3_reciprocal.vhd \
-	 ../keygen/r3_reciprocal_parallel.vhd \
 	 ../keygen/modq_minus_product.vhd \
 	 ../keygen/modq_reciprocal.vhd \
 	 ../keygen/rq_reciprocal_3.vhd \
@@ -72,12 +70,10 @@ elaborate:
 	ghdl -e ${GHDLFLAGS} bram_r3_reciprocal
 	ghdl -e ${GHDLFLAGS} bram_rq_reciprocal_3
 	ghdl -e ${GHDLFLAGS} r3_reciprocal
-	ghdl -e ${GHDLFLAGS} r3_reciprocal_parallel
 	ghdl -e ${GHDLFLAGS} modq_minus_product
 	ghdl -e ${GHDLFLAGS} modq_reciprocal
 	ghdl -e ${GHDLFLAGS} rq_reciprocal_3
 	ghdl -e ${GHDLFLAGS} encode_R3
-	ghdl -e ${GHDLFLAGS} encode_R3_from_parallel
 	ghdl -e ${GHDLFLAGS} key_gen_wrapper
 	ghdl -e ${GHDLFLAGS} rq_reciprocal_3
 	ghdl -e ${GHDLFLAGS} division_32_by_const

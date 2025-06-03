@@ -19,7 +19,7 @@ entity key_generation is
 		output_h_ack                : in  std_logic;
 		output_f                    : out std_logic_vector(1 downto 0);
 		output_f_valid              : out std_logic;
-		output_g_recip              : out std_logic_vector(3 downto 0);
+		output_g_recip              : out std_logic_vector(1 downto 0);
 		output_g_valid              : out std_logic;
 		random_small_enable         : out std_logic;
 		random_small_poly           : in  std_logic_vector(1 downto 0);
@@ -43,10 +43,10 @@ architecture RTL of key_generation is
 	signal random_small_counter_delay : std_logic_vector(p_num_bits - 1 downto 0);
 
 	signal r3_recip_start         : std_logic;
-	signal r3_recip_poly_in       : std_logic_vector(3 downto 0);
-	signal r3_recip_poly_out      : std_logic_vector(3 downto 0);
+	signal r3_recip_poly_in       : std_logic_vector(1 downto 0);
+	signal r3_recip_poly_out      : std_logic_vector(1 downto 0);
 	signal r3_recip_done          : std_logic;
-	signal r3_is_invertable       : std_logic;
+	signal r3_recip_is_invertable : std_logic;
 	signal r3_recip_ready         : std_logic;
 	signal r3_recip_output_valid  : std_logic;
 
@@ -96,22 +96,12 @@ architecture RTL of key_generation is
 	signal bram_g_data_in_b  : std_logic_vector(2 - 1 downto 0);
 	signal bram_g_data_out_b : std_logic_vector(2 - 1 downto 0);
 
-
-	signal inv_read_addr      : integer range 0 to (p / 2 );
-	signal inv_g_reading      : std_logic;
-	signal inv_read_done      : std_logic;
-	signal g_data_pair        : std_logic_vector(3 downto 0);
-
-	signal inv_write_addr  : integer range 0 to (p / 2 - 1);
-	signal inv_write_enable : std_logic;
-	signal recip_out_high  : std_logic_vector(1 downto 0);
-	signal recip_out_low   : std_logic_vector(1 downto 0);
-
 begin
 	fsm_process : process(clock, reset) is
 	begin
 		if reset = '1' then
 			state_key_gen <= init_state;
+
 			ready                   <= '0';
 			random_small_enable_out <= '0';
 			r3_recip_start          <= '0';
@@ -123,7 +113,6 @@ begin
 			case state_key_gen is
 				when init_state =>
 					if start = '1' then
-						report "Starting f generation";
 						state_key_gen <= gen_f;
 					else
 						state_key_gen <= init_state;
@@ -131,19 +120,17 @@ begin
 					ready <= '1';
 					done  <= '0';
 				when gen_g =>
-						report "generating with counter "& integer'image(random_small_counter);
 					if random_small_counter = p - 1 then
-						report "Done g generation";
 						state_key_gen <= gen_g_done;
 					else
 						state_key_gen <= gen_g;
 					end if;
 					random_small_counter <= random_small_counter + 1;
+
 					random_small_enable_out <= '1';
 					r3_recip_start          <= '0';
 				when gen_g_done =>
 					state_key_gen           <= inv_g;
-					report "Starting inv_g-----------------"; 
 					random_small_enable_out <= '0';
 					random_small_counter    <= 0;
 				when inv_g =>
@@ -153,20 +140,15 @@ begin
 					if r3_recip_done = '0' then
 						state_key_gen <= wait_inv_g;
 					else
-						report "Done inv_g------------------";
-						if r3_is_invertable = '1' then
-							report "g is invertable";
+						if r3_recip_is_invertable = '1' then
 							state_key_gen <= inv_f;
 						else
-							report "g is not invertable, generating new g";
 							state_key_gen <= check_inv_g;
 						end if;
 					end if;
 				when check_inv_g =>
 					if r3_recip_ready = '1' then
-						report "Starting g inversion";
 						state_key_gen  <= gen_g;
-						report "Sending signal to start to r3 recip, to invert g";
 						r3_recip_start <= '1';
 					else
 						state_key_gen <= check_inv_g;
@@ -177,25 +159,22 @@ begin
 					ready             <= '0';
 				when wait_gen_f =>
 					if small_weights_done = '1' then
-						report "Done f generation, starting g generation";
 						state_key_gen  <= gen_g;
 						r3_recip_start <= '1';
 					end if;
+
 					small_weigh_start <= '0';
 				when inv_f =>
 					if rq_recip3_ready = '0' then
 						state_key_gen <= inv_f;
 					else
-						report "rq finished";
 						state_key_gen <= inv_f_done1;
 					end if;
 				when inv_f_done1 =>
-					report "Done inv_f";
 					state_key_gen <= inv_f_done2;
 				when inv_f_done2 =>
 					state_key_gen <= mult_fg_init;
 				when mult_fg_init =>
-					report "Starting mult_fg";
 					state_key_gen <= mult_fg;
 					rq_mult_start <= '1';
 				when mult_fg =>
@@ -206,48 +185,15 @@ begin
 					end if;
 					rq_mult_start <= '0';
 				when done_state =>
-					report "Done key generation";
 					state_key_gen <= init_state;
 					done          <= '1';
 			end case;
 		end if;
 	end process fsm_process;
 
-	read_g_coeffs : process(clock, reset)
-begin
-  if reset = '1' then
-    inv_read_addr  <= 0;
-    inv_g_reading  <= '0';
-    inv_read_done  <= '0';
-    g_data_pair     <= (others => '0');
-  elsif rising_edge(clock) then
-    if state_key_gen = inv_g then
-      inv_g_reading <= '1';
-      inv_read_addr <= 0;
-      inv_read_done <= '0';
-    elsif inv_g_reading = '1' then
-      -- Read two 2-bit values from BRAM
-      bram_g_address_a <= std_logic_vector(to_unsigned(inv_read_addr * 2, p_num_bits));
-      bram_g_address_b <= std_logic_vector(to_unsigned(inv_read_addr * 2 + 1, p_num_bits));
-
-      -- Combine into 4-bit pair
-      g_data_pair <= bram_g_data_out_b & bram_g_data_out_a;
-
-      -- Move to next
-      if inv_read_addr = (p / 2 - 1) then
-        inv_g_reading <= '0';
-        inv_read_done <= '1';
-      else
-        inv_read_addr <= inv_read_addr + 1;
-      end if;
-    end if;
-  end if;
-end process;
-
-	r3_recip_poly_in <= g_data_pair;
+	r3_recip_poly_in <= random_small_poly;
 
 	rq_recip3_start         <= small_weights_valid when rising_edge(clock);
-	
 	rq_recip3_small_poly_in <= std_logic_vector(small_weights_out) when rising_edge(clock); -- TODO is this clock really needed?
 
 	-- rq_reciprocal outputs highest degree coeffiencts first, they have to put at high address
@@ -296,22 +242,21 @@ end process;
 	rq_mult_bram_g_data_out_a <= bram_g_data_out_a;
 	rq_mult_bram_g_data_out_b <= bram_g_data_out_b;
 
-	output_g_valid <= r3_recip_output_valid and r3_is_invertable;
+	output_g_valid <= r3_recip_output_valid and r3_recip_is_invertable;
 	output_g_recip <= r3_recip_poly_out;
 
-	r3_reciprocal_parallel_inst : entity work.r3_reciprocal_parallel
+	r3_reciprocal_inst : entity work.r3_reciprocal
 		port map(
-			clock        => clock,
-			reset        => reset,
-			start        => r3_recip_start,
-			input_data   => r3_recip_poly_in,     -- 4-bit: 2 coefficients
-			output_data  => r3_recip_poly_out,    -- 4-bit result
-			output_valid => r3_recip_output_valid,
-			ready => r3_recip_ready,
-			is_invertable => r3_is_invertable, 
-			done         => r3_recip_done
+			clock               => clock,
+			reset               => reset,
+			start               => r3_recip_start,
+			small_polynomial_in => r3_recip_poly_in,
+			ready               => r3_recip_ready,
+			output_polynomial   => r3_recip_poly_out,
+			output_valid        => r3_recip_output_valid,
+			is_invertable       => r3_recip_is_invertable,
+			done                => r3_recip_done
 		);
-
 
 	to_small_weights.random_output <= small_weights_random_output;
 	to_small_weights.start         <= small_weigh_start;

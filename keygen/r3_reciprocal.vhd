@@ -12,24 +12,26 @@ use work.data_type.all;
 entity r3_reciprocal is
 	port(
 		clock               : in  std_logic;
-        reset               : in  std_logic;
-        start               : in  std_logic;
-        small_polynomial_in : in  std_logic_vector(1 downto 0);
-        address_offset      : in  std_logic_vector(9 downto 0);
-        ready               : out std_logic;
-        output_polynomial   : out std_logic_vector(1 downto 0);
-        output_valid        : out std_logic;
-        is_invertable       : out std_logic;
-        done                : out std_logic
+		reset               : in  std_logic;
+		start               : in  std_logic;
+		small_polynomial_in : in  std_logic_vector(1 downto 0);
+		ready               : out std_logic;
+		output_polynomial   : out std_logic_vector(1 downto 0);
+		output_valid        : out std_logic;
+		is_invertable       : out std_logic;
+		done                : out std_logic
 	);
 end entity r3_reciprocal;
 
 architecture RTL of r3_reciprocal is
-	constant loop_limit : integer := p - 1;
+	constant loop_limit : integer := 2 * p - 1;
+
+	constant bram_address_width : integer := integer(ceil(log2(real(p + 1))));
+
 	signal counter             : integer range 0 to loop_limit + 1 := 0;
 	type state_type is (init_state, reset_ram, reset_ram_end, ready_state, running_state, swap_state_1, swap_state_2, swap_state_3, multiply_state_read, multiply_final_state_1, multiply_final_state_2, calc_reciprocal_init, calc_reciprocal_init_2, calc_reciprocal, output_data, done_state);
 	signal state_r3_reciprocal : state_type;
-	signal bram_address_width : integer := 10;
+
 	signal counter_vr : integer range 0 to p + 2;
 	signal counter_fg : integer range 0 to p + 2;
 
@@ -174,20 +176,21 @@ begin
 					bram_r_write_b_reset <= '0';
 				when reset_ram =>
 
-					bram_f_address_b_reset <= std_logic_vector(unsigned(to_unsigned(counter_fg, bram_address_width)) + unsigned(address_offset));
-                    bram_g_address_b_reset <= std_logic_vector(unsigned(to_unsigned(p - 1 - counter_fg, bram_address_width)) + unsigned(address_offset));
-                    bram_v_address_b_reset <= std_logic_vector(unsigned(to_unsigned(counter_vr, bram_address_width)) + unsigned(address_offset));
-                    bram_r_address_b_reset <= std_logic_vector(unsigned(to_unsigned(counter_vr, bram_address_width)) + unsigned(address_offset));
+					bram_f_address_b_reset <= std_logic_vector(to_unsigned(counter_fg, bram_address_width));
+					bram_g_address_b_reset <= std_logic_vector(to_signed(p - 1 - counter_fg, bram_address_width + 1)(bram_address_width - 1 downto 0));
+
+					bram_v_address_b_reset <= std_logic_vector(to_unsigned(counter_vr, bram_address_width));
+					bram_r_address_b_reset <= std_logic_vector(to_unsigned(counter_vr, bram_address_width));
 
 					if counter_fg = 0 then
 						bram_f_data_in_b_reset <= std_logic_vector(to_signed(1, 2));
-					elsif counter_fg = p/2  then
+					elsif counter_fg = p or counter_fg = p - 1 then
 						bram_f_data_in_b_reset <= std_logic_vector(to_signed(-1, 2));
 					else
 						bram_f_data_in_b_reset <= (others => '0');
 					end if;
 
-					if counter_fg < p/2 + 1 then
+					if counter_fg < p then
 						bram_g_data_in_b_reset <= std_logic_vector(resize(signed(small_polynomial_in), 2));
 					else
 						bram_g_data_in_b_reset <= (others => '0');
@@ -210,13 +213,13 @@ begin
 
 					counter_fg <= counter_fg + 1;
 					counter_vr <= counter_vr + 1;
-					if counter_fg < p/2 then
+					if counter_fg < p + 1 then
 						state_r3_reciprocal <= reset_ram;
+
 					else
 						state_r3_reciprocal <= reset_ram_end;
 					end if;
 				when reset_ram_end =>
-					report "ending ram reset starting inversion";
 					state_r3_reciprocal     <= running_state;
 					bram_g_address_b_reset  <= (others => '0');
 					bram_f_address_b_reset  <= (others => '0');
@@ -260,18 +263,20 @@ begin
 					g_zero              <= bram_g_data_out_a;
 				when multiply_state_read =>
 
-					bram_f_address_a <= std_logic_vector(unsigned(to_unsigned(counter_fg, bram_address_width)) + unsigned(address_offset));
-					bram_g_address_a <= std_logic_vector(unsigned(to_unsigned(counter_fg, bram_address_width)) + unsigned(address_offset));
-					bram_v_address_a <= std_logic_vector(unsigned(to_unsigned(counter_vr, bram_address_width)) + unsigned(address_offset));
-					bram_r_address_a <= std_logic_vector(unsigned(to_unsigned(counter_vr, bram_address_width)) + unsigned(address_offset));
+					bram_f_address_a <= std_logic_vector(to_unsigned(counter_fg, bram_address_width));
+					bram_g_address_a <= std_logic_vector(to_unsigned(counter_fg, bram_address_width));
+					bram_v_address_a <= std_logic_vector(to_unsigned(counter_vr, bram_address_width));
+					bram_r_address_a <= std_logic_vector(to_unsigned(counter_vr, bram_address_width));
 
-					bram_g_address_b_delay(0) <= std_logic_vector(unsigned(to_unsigned(counter_fg, bram_address_width)) + unsigned(address_offset));
-					bram_r_address_b_delay(0) <= std_logic_vector(unsigned(to_unsigned(counter_vr, bram_address_width)) + unsigned(address_offset));
+					bram_g_address_b_delay(0) <= std_logic_vector(to_unsigned(counter_fg, bram_address_width));
+					bram_g_write_b_delay(0)   <= '1';
+
+					bram_r_address_b_delay(0) <= std_logic_vector(to_unsigned(counter_vr, bram_address_width));
 					bram_r_write_b_delay(0)   <= '1';
 
 					counter_fg <= counter_fg + 1;
 					counter_vr <= counter_vr + 1;
-					if counter_fg = p/2 + 1 and counter_vr = p/2 then
+					if counter_fg = p + 1 and counter_vr = p + 1 - 1 then
 						state_r3_reciprocal <= multiply_final_state_1;
 					else
 						state_r3_reciprocal <= multiply_state_read;
@@ -283,12 +288,12 @@ begin
 					else
 						bram_shift_v_write_b <= '0';
 						if counter_vr = 1 then
-							bram_shift_v_address_b <= std_logic_vector(unsigned(address_offset));
+							bram_shift_v_address_b <= (others => '0');
 							bram_shift_v_data_in_b <= (others => '0');
 							bram_shift_v_write_b   <= '1';
 						else
 							if counter_vr > 1 then
-								bram_shift_v_address_b <= std_logic_vector(unsigned(to_unsigned(counter_vr - 1, bram_address_width)) + unsigned(address_offset));
+								bram_shift_v_address_b <= std_logic_vector(to_unsigned(counter_vr - 1, bram_address_width));
 								bram_shift_v_data_in_b <= bram_v_data_out_a;
 								bram_shift_v_write_b   <= '1';
 							end if;
@@ -321,10 +326,10 @@ begin
 					counter_vr          <= 0;
 					state_r3_reciprocal <= output_data;
 				when output_data =>
-					bram_v_address_a <= std_logic_vector(unsigned(to_unsigned(p/2 - counter_vr, bram_address_width)) + unsigned(address_offset));
+					bram_v_address_a     <= std_logic_vector(to_signed(p - 1 - counter_vr, bram_address_width + 1)(bram_address_width - 1 downto 0));
 					counter_vr           <= counter_vr + 1;
 					output_valid_pipe(0) <= '1';
-					if counter_vr < p/2 then
+					if counter_vr < p then
 						state_r3_reciprocal <= output_data;
 					else
 						state_r3_reciprocal  <= done_state;
@@ -446,7 +451,7 @@ begin
 	bram_r3_reciprocal : entity work.bram_r3_reciprocal
 		generic map(
 			bram_address_width => bram_address_width,
-			bram_data_width    =>  2
+			bram_data_width    => 2
 		)
 		port map(
 			clock             => clock,

@@ -143,9 +143,6 @@ architecture RTL of ntru_prime_top is
 	signal mod3_freeze_round_in  : mod3_freeze_round_in_type;
 	signal mod3_freeze_round_out : mod3_freeze_round_out_type;
 
-
-	signal coeff_a, coeff_b : std_logic_vector(1 downto 0);
-
 	constant three_fffffff : std_logic_vector(31 downto 0) := "00111111111111111111111111111111";
 begin
 
@@ -245,12 +242,7 @@ begin
 
 	key_gen_start <= start_key_gen;
 
-		
-
-
-	
-	key_gen_random_small_poly <= std_logic_vector(shift_right(unsigned(random_output and three_fffffff) * 3, 30)(1 downto 0));
-	
+	key_gen_random_small_poly <= std_logic_vector(shift_right(unsigned(random_output and three_fffffff) * 3, 30)(1 downto 0) - 1);
 
 	public_key_out       <= key_gen_encoded_pk;
 	public_key_out_valid <= key_gen_encoded_pk_valid;
