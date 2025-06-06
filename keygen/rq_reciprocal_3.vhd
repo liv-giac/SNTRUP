@@ -14,9 +14,9 @@ entity rq_reciprocal_3 is
 		clock               : in  std_logic;
 		reset               : in  std_logic;
 		start               : in  std_logic;
-		small_polynomial_in : in  std_logic_vector(1 downto 0);
+		small_polynomial_in : in  std_logic_vector(3 downto 0);
 		ready               : out std_logic;
-		output_polynomial   : out std_logic_vector(q_num_bits - 1 downto 0);
+		output_polynomial   : out std_logic_vector(2 * q_num_bits - 1 downto 0);
 		output_valid        : out std_logic;
 		done                : out std_logic
 	);
@@ -33,7 +33,8 @@ architecture RTL of rq_reciprocal_3 is
 		variable ai : integer := a;
 	begin
 		for i in 1 to q - 3 loop
-			report "ai= " & integer'image(ai) & " i=" & integer'image(i);
+			
+			--report "ai= " & integer'image(ai) & " i=" & integer'image(i);
 			ai := ai * a;
 			while ai >= integer(ceil(real(q) / real(2))) loop
 				ai := ai - q;
@@ -49,19 +50,19 @@ architecture RTL of rq_reciprocal_3 is
 	constant reciproc_3 : integer := modq_reciprocal(3);
 
 	signal counter             : integer range 0 to loop_limit + 1 := 0;
-	type state_type is (init_state, reset_ram, ready_state, running_state, swap_state_1, swap_state_2, swap_state_3, multiply_state_read, multiply_final_state_1, multiply_final_state_2, multiply_final_state_3, calc_reciprocal_init, calc_reciprocal_init_2, calc_reciprocal, output_data, done_state);
+	type state_type is (init_state, reset_ram, ready_state, running_state, swap_state_1a, swap_state_2a, swap_state_3a, swap_state_1b, swap_state_2b, swap_state_3b, multiply_state_read, multiply_final_state_1, multiply_final_state_2, multiply_final_state_3, calc_reciprocal_init, calc_reciprocal_init_2, calc_reciprocal, output_data, done_state);
 	signal state_rq_reciprocal : state_type;
 
 	signal counter_vr : integer range 0 to p + 2;
 	signal counter_fg : integer range 0 to p + 2;
 
-	signal small_polynomial_in_delay : std_logic_vector(1 downto 0);
+	signal small_polynomial_in_delay : std_logic_vector(3 downto 0);
 
-	signal bram_f_data_in_a : std_logic_vector(q_num_bits - 1 downto 0);
-	signal bram_g_data_in_a : std_logic_vector(q_num_bits - 1 downto 0);
-	signal bram_v_data_in_a : std_logic_vector(q_num_bits - 1 downto 0);
-	signal bram_r_data_in_a : std_logic_vector(q_num_bits - 1 downto 0);
-
+	signal bram_f_data_in_a : std_logic_vector(2 * q_num_bits - 1 downto 0);
+	signal bram_g_data_in_a : std_logic_vector(2 * q_num_bits - 1 downto 0);
+	signal bram_v_data_in_a : std_logic_vector(2 * q_num_bits - 1 downto 0);
+	signal bram_r_data_in_a : std_logic_vector(2 * q_num_bits - 1 downto 0);
+ 
 	signal bram_f_write_a : std_logic;
 	signal bram_g_write_a : std_logic;
 	signal bram_v_write_a : std_logic;
@@ -72,19 +73,21 @@ architecture RTL of rq_reciprocal_3 is
 	signal bram_v_address_a : std_logic_vector(bram_address_width - 1 downto 0);
 	signal bram_r_address_a : std_logic_vector(bram_address_width - 1 downto 0);
 
-	signal bram_f_data_out_a : std_logic_vector(q_num_bits - 1 downto 0);
-	signal bram_g_data_out_a : std_logic_vector(q_num_bits - 1 downto 0);
-	signal bram_v_data_out_a : std_logic_vector(q_num_bits - 1 downto 0);
-	signal bram_r_data_out_a : std_logic_vector(q_num_bits - 1 downto 0);
+	signal bram_f_data_out_a : std_logic_vector(2 * q_num_bits - 1 downto 0);
+	signal bram_g_data_out_a : std_logic_vector(2 * q_num_bits - 1 downto 0);
+	signal bram_v_data_out_a : std_logic_vector(2 * q_num_bits - 1 downto 0);
+	signal bram_r_data_out_a : std_logic_vector(2 * q_num_bits - 1 downto 0);
 
 	signal swap_mask_s : std_logic;
 
-	signal f_zero : std_logic_vector(q_num_bits - 1 downto 0);
-	signal g_zero : std_logic_vector(q_num_bits - 1 downto 0);
+	signal f0_a, f0_b : std_logic_vector(q_num_bits - 1 downto 0);
+	signal g0_a, g0_b : std_logic_vector(q_num_bits - 1 downto 0);
 
-	signal fg_freeze : signed(q_num_bits - 1 downto 0);
+	signal fg_freeze : signed(2 * q_num_bits - 1 downto 0);
+	signal fg_freeze_a : signed(q_num_bits - 1 downto 0);
+    signal fg_freeze_b : signed(q_num_bits - 1 downto 0);
 
-	signal bram_g_data_in_b : std_logic_vector(q_num_bits - 1 downto 0);
+	signal bram_g_data_in_b : std_logic_vector(2 * q_num_bits - 1 downto 0);
 
 	constant pipeline_length : integer := 5;
 
@@ -93,32 +96,46 @@ architecture RTL of rq_reciprocal_3 is
 	signal bram_g_address_b_delay : address_delay;
 	signal bram_g_write_b_delay   : std_logic_vector(pipeline_length downto 0);
 
-	signal vr_freeze : signed(q_num_bits - 1 downto 0);
+	signal vr_freeze : signed(2 * q_num_bits - 1 downto 0);
+	signal vr_freeze_a : signed(q_num_bits - 1 downto 0);
+	signal vr_freeze_b : signed(q_num_bits - 1 downto 0);
 
 	signal bram_r_address_b_delay : address_delay;
 	signal bram_r_write_b_delay   : std_logic_vector(pipeline_length downto 0);
 
 	-- Shift data in v RAM
 	signal bram_shift_v_address_b : std_logic_vector(bram_address_width - 1 downto 0);
-	signal bram_shift_v_data_in_b : std_logic_vector(q_num_bits - 1 downto 0);
+	signal bram_shift_v_data_in_b : std_logic_vector(2 * q_num_bits - 1 downto 0);
 	signal bram_shift_v_write_b   : std_logic;
 
 	signal reciprocal_start  : std_logic;
-	signal reciprocal_input  : std_logic_vector(q_num_bits - 1 downto 0);
+	signal reciprocal_input_a  : std_logic_vector(q_num_bits - 1 downto 0);
+	signal reciprocal_input_b  : std_logic_vector(q_num_bits - 1 downto 0);
+	signal reciprocal_ready_a  : std_logic;
+	signal reciprocal_ready_b  : std_logic;
+	signal reciprocal_done_a   : std_logic;
+	signal reciprocal_done_b   : std_logic;
 	signal reciprocal_ready  : std_logic;
 	signal reciprocal_done   : std_logic;
-	signal reciprocal_output : std_logic_vector(q_num_bits - 1 downto 0);
+	signal reciprocal_output : std_logic_vector(2 * q_num_bits - 1 downto 0);
+	signal reciprocal_output_a : std_logic_vector(q_num_bits - 1 downto 0);
+	signal reciprocal_output_b : std_logic_vector( q_num_bits - 1 downto 0);
 
-	signal output_pre_freeze : signed(q_num_bits * 2 - 1 downto 0);
-	signal output_freeze     : signed(q_num_bits - 1 downto 0);
+	signal output_pre_freeze : signed(2 * q_num_bits * 2 - 1 downto 0);
+	signal output_pre_freeze_a : signed(q_num_bits * 2 - 1 downto 0);
+	signal output_pre_freeze_b : signed(q_num_bits * 2 - 1 downto 0);
+	signal output_freeze     : signed(2 * q_num_bits - 1 downto 0);
+	signal output_freeze_a     : signed( q_num_bits - 1 downto 0);
+	signal output_freeze_b     : signed( q_num_bits - 1 downto 0);
 
 	signal output_valid_pipe : std_logic_vector(pipeline_length downto 0);
-
+				
 begin
 
 	main : process(clock, reset) is
 		variable delta : signed(15 downto 0);
-
+		variable g_coeff_a : signed(q_num_bits-1 downto 0);
+		variable g_coeff_b : signed(q_num_bits-1 downto 0);
 		variable swap_mask : signed(15 downto 0);
 
 	begin
@@ -126,7 +143,8 @@ begin
 			state_rq_reciprocal <= init_state;
 
 			reciprocal_start <= '0';
-			reciprocal_input <= (others => '0');
+			reciprocal_input_a <= (others => '0');
+			reciprocal_input_b <= (others => '0');
 
 			bram_g_address_b_delay(0) <= (others => '0');
 			bram_g_write_b_delay(0)   <= '0';
@@ -144,8 +162,8 @@ begin
 			bram_v_data_in_a <= (others => '0');
 			bram_r_data_in_a <= (others => '0');
 
-			f_zero <= (others => '0');
-			g_zero <= (others => '0');
+			f0_a <= (others => '0');
+			g0_b <= (others => '0');
 
 			bram_shift_v_write_b    <= '0';
 			bram_r_write_b_delay(0) <= '0';
@@ -181,23 +199,25 @@ begin
 					bram_r_write_a <= '0';
 				when reset_ram =>
 
-					bram_f_address_a <= std_logic_vector(to_unsigned(counter_fg, bram_address_width));
-					bram_g_address_a <= std_logic_vector(to_signed(p - 1 - counter_fg, bram_address_width + 1)(bram_address_width - 1 downto 0));
+					bram_f_address_a <= std_logic_vector(to_unsigned(counter_fg/2, bram_address_width));
+					bram_g_address_a <= std_logic_vector(to_signed((p - 1 - counter_fg)/2, bram_address_width + 1)(bram_address_width - 1 downto 0));
 
 					bram_v_address_a <= std_logic_vector(to_unsigned(counter_vr, bram_address_width));
 					bram_r_address_a <= std_logic_vector(to_unsigned(counter_vr, bram_address_width));
 
 					if counter_fg = 0 then
-						bram_f_data_in_a <= std_logic_vector(to_signed(1, q_num_bits));
+						bram_f_data_in_a <= std_logic_vector(to_signed(1, q_num_bits)) & std_logic_vector(to_signed(0, q_num_bits));
 					elsif counter_fg = p or counter_fg = p - 1 then
-						bram_f_data_in_a <= std_logic_vector(to_signed(-1, q_num_bits));
+						bram_f_data_in_a <= std_logic_vector(to_signed(-1, q_num_bits)) & std_logic_vector(to_signed(-1, q_num_bits));
 					else
 						bram_f_data_in_a <= (others => '0');
 					end if;
 
-					if counter_fg < p then
-						bram_g_data_in_a <= std_logic_vector(resize(signed(small_polynomial_in_delay), q_num_bits));
-					else
+					if counter_fg + 1 < p then
+						bram_g_data_in_a <= std_logic_vector(resize(signed(small_polynomial_in_delay), 2 *q_num_bits));
+						elsif counter_fg < p then
+								bram_g_data_in_b <= std_logic_vector(resize(signed(small_polynomial_in_delay), q_num_bits)) & std_logic_vector(to_signed(0, q_num_bits)); -- pad upper with zero
+						else
 						bram_g_data_in_a <= (others => '0');
 						bram_g_address_a <= std_logic_vector(to_unsigned(p, bram_address_width));
 					end if;
@@ -205,7 +225,7 @@ begin
 					bram_v_data_in_a <= (others => '0');
 
 					if counter_vr = 0 then
-						bram_r_data_in_a <= std_logic_vector(to_signed(reciproc_3, q_num_bits));
+						bram_r_data_in_a <= std_logic_vector(to_signed(reciproc_3, q_num_bits)) & std_logic_vector(to_signed(0, q_num_bits));
 					else
 						bram_r_data_in_a <= (others => '0');
 					end if;
@@ -215,19 +235,21 @@ begin
 					bram_v_write_a <= '1';
 					bram_r_write_a <= '1';
 
-					counter_fg <= counter_fg + 1;
-					counter_vr <= counter_vr + 1;
-					if counter_fg < p + 1 then
+					counter_fg <= counter_fg + 2;
+					counter_vr <= counter_vr + 2;
+					if counter_fg < p - 1 then
 						state_rq_reciprocal <= reset_ram;
 
 					else
 						state_rq_reciprocal <= running_state;
 					end if;
 				when running_state =>
-					if counter >= loop_limit then
+					if counter >= loop_limit/2 then
 						state_rq_reciprocal <= calc_reciprocal_init;
+					elsif counter = loop_limit/2 -1 then
+							state_rq_reciprocal <= swap_state_1b;
 					else
-						state_rq_reciprocal <= swap_state_1;
+						state_rq_reciprocal <= swap_state_1a;
 					end if;
 					bram_g_address_a <= (others => '0');
 					bram_f_address_a <= (others => '0');
@@ -242,22 +264,40 @@ begin
 					bram_g_write_a          <= '0';
 					bram_v_write_a          <= '0';
 					bram_r_write_a          <= '0';
-				when swap_state_1 =>
-					state_rq_reciprocal <= swap_state_2;
-				when swap_state_2 =>
-					state_rq_reciprocal <= swap_state_3;
-					swap_mask           := negative_mask(-delta) AND non_zero_mask(signed(bram_g_data_out_a));
+				when swap_state_1a =>
+					state_rq_reciprocal <= swap_state_2a;
+				when swap_state_2a =>
+					state_rq_reciprocal <= swap_state_3a;
+					g_coeff_a := signed(bram_g_data_out_a(2*q_num_bits-1 downto q_num_bits));
+					g_coeff_b := signed(bram_g_data_out_a(q_num_bits-1 downto 0));
 					delta               := (delta XOR (swap_mask AND (delta XOR -delta))) + to_signed(1, 16);
-
+				
+					swap_mask := negative_mask(-delta) AND non_zero_mask(g_coeff_a);
 					if swap_mask(0) = '1' then
 						swap_mask_s <= not swap_mask_s;
 					else
 						swap_mask_s <= swap_mask_s;
 					end if;
-				when swap_state_3 =>
+				when swap_state_3a =>
+					state_rq_reciprocal <= swap_state_1b;
+					f0_a             <= bram_f_data_out_a(2*q_num_bits-1 downto q_num_bits);
+					g0_a             <= bram_g_data_out_a(2*q_num_bits-1 downto q_num_bits);
+				when swap_state_1b =>
+					state_rq_reciprocal <= swap_state_2b;
+				when swap_state_2b =>
+					state_rq_reciprocal <= swap_state_3b;
+					delta               := (delta XOR (swap_mask AND (delta XOR -delta))) + to_signed(1, 16);
+
+					swap_mask := negative_mask(-delta) AND non_zero_mask(g_coeff_b);
+					if swap_mask(0) = '1' then
+						swap_mask_s <= not swap_mask_s;
+					else
+						swap_mask_s <= swap_mask_s;
+					end if;
+				when swap_state_3b => 
 					state_rq_reciprocal <= multiply_state_read;
-					f_zero              <= bram_f_data_out_a;
-					g_zero              <= bram_g_data_out_a;
+					f0_b             <= bram_f_data_out_a(q_num_bits-1 downto 0);
+					g0_b             <= bram_g_data_out_a(q_num_bits-1 downto 0);
 				when multiply_state_read =>
 
 					bram_f_address_a <= std_logic_vector(to_unsigned(counter_fg, bram_address_width));
@@ -271,9 +311,9 @@ begin
 					bram_r_address_b_delay(0) <= std_logic_vector(to_unsigned(counter_vr, bram_address_width));
 					bram_r_write_b_delay(0)   <= '1';
 
-					counter_fg <= counter_fg + 1;
-					counter_vr <= counter_vr + 1;
-					if counter_fg = p + 1 and counter_vr = p + 1 - 1 then
+					counter_fg <= counter_fg + 2;
+					counter_vr <= counter_vr + 2;
+					if counter_fg = p/2 + 1 and counter_vr = p/2 + 1 - 1 then
 						state_rq_reciprocal <= multiply_final_state_1;
 					else
 						state_rq_reciprocal <= multiply_state_read;
@@ -327,7 +367,9 @@ begin
 					state_rq_reciprocal <= calc_reciprocal;
 				when calc_reciprocal =>
 					reciprocal_start <= '1';
-					reciprocal_input <= bram_f_data_out_a;
+					reciprocal_input_a <= bram_f_data_out_a(2*q_num_bits-1 downto q_num_bits);
+					reciprocal_input_b <= bram_f_data_out_a(q_num_bits-1 downto 0);
+
 					counter_vr       <= 0;
 					if reciprocal_done = '1' then
 						state_rq_reciprocal <= output_data;
@@ -337,9 +379,9 @@ begin
 					end if;
 				when output_data =>
 					bram_v_address_a     <= std_logic_vector(to_signed(p - 1 - counter_vr, bram_address_width + 1)(bram_address_width - 1 downto 0));
-					counter_vr           <= counter_vr + 1;
+					counter_vr           <= counter_vr + 2;
 					output_valid_pipe(0) <= '1';
-					if counter_vr < p then
+					if counter_vr < p - 1 then
 						state_rq_reciprocal <= output_data;
 					else
 						state_rq_reciprocal  <= done_state;
@@ -353,28 +395,50 @@ begin
 		end if;
 	end process main;
 
-	modq_reciprocal_inst : entity work.modq_reciprocal
+	modq_reciprocal_inst_a : entity work.modq_reciprocal
 		port map(
 			clock  => clock,
 			reset  => reset,
 			start  => reciprocal_start,
-			input  => reciprocal_input,
-			ready  => reciprocal_ready,
-			done   => reciprocal_done,
-			output => reciprocal_output
+			input  => reciprocal_input_a,
+			ready  => reciprocal_ready_a,
+			done   => reciprocal_done_a,
+			output => reciprocal_output_a
 		);
-
-	output_pre_freeze <= signed(reciprocal_output) * signed(bram_v_data_out_a) when rising_edge(clock);
-
-	modq_freeze_inst_scale : entity work.modq_freeze(RTL)
+	
+	modq_reciprocal_inst_b : entity work.modq_reciprocal
 		port map(
 			clock  => clock,
 			reset  => reset,
-			input  => output_pre_freeze,
-			output => output_freeze
+			start  => reciprocal_start,
+			input  => reciprocal_input_b,
+			ready  => reciprocal_ready_b,
+			done   => reciprocal_done_b,
+			output => reciprocal_output_b
+		);
+	
+		reciprocal_done <= reciprocal_done_a AND reciprocal_done_b;
+
+	output_pre_freeze_a <= signed(reciprocal_output_a) * signed(bram_v_data_out_a(2*q_num_bits-1 downto q_num_bits)) when rising_edge(clock);
+	output_pre_freeze_b <= signed(reciprocal_output_b) * signed(bram_v_data_out_a(q_num_bits-1 downto 0)) when rising_edge(clock);
+					
+	modq_freeze_inst_scale_a : entity work.modq_freeze(RTL)
+		port map(
+			clock  => clock,
+			reset  => reset,
+			input  => output_pre_freeze_a,
+			output => output_freeze_a
 		);
 
-	output_polynomial <= std_logic_vector(output_freeze);
+	modq_freeze_inst_scale_b : entity work.modq_freeze(RTL)
+		port map(
+			clock  => clock,
+			reset  => reset,
+			input  => output_pre_freeze_b,
+			output => output_freeze_b
+		);
+
+	output_polynomial <= std_logic_vector(output_freeze_a) & std_logic_vector(output_freeze_b);
 
 	delay_output_valid : process(clock, reset) is
 	begin
@@ -388,18 +452,28 @@ begin
 	output_valid <= output_valid_pipe(pipeline_length-1);
 
 	-- Multiplication of f0*g[i]-g0*f[i]
-	modq_minus_product_inst_fg : entity work.modq_minus_product
+	modq_minus_product_inst_fg_a : entity work.modq_minus_product
 		port map(
 			clock         => clock,
 			reset         => reset,
-			data_in_a     => bram_g_data_out_a,
-			data_in_b     => bram_f_data_out_a,
-			f_zero        => f_zero,
-			g_zero        => g_zero,
-			output_freeze => fg_freeze
+			data_in_a     => bram_g_data_out_a(2*q_num_bits-1 downto q_num_bits),
+			data_in_b     => bram_f_data_out_a(2*q_num_bits-1 downto q_num_bits),
+			f_zero        => f0_a,
+			g_zero        => g0_a,
+			output_freeze => fg_freeze_a
+		);
+	modq_minus_product_inst_fg_b : entity work.modq_minus_product
+		port map(
+			clock         => clock,
+			reset         => reset,
+			data_in_a     => bram_g_data_out_a(q_num_bits-1 downto 0),
+			data_in_b     => bram_f_data_out_a(q_num_bits-1 downto 0),
+			f_zero        => f0_b,
+			g_zero        => g0_b,
+			output_freeze => fg_freeze_b
 		);
 
-	bram_g_data_in_b <= std_logic_vector(fg_freeze) when bram_g_address_b_delay(pipeline_length) /= std_logic_vector(to_unsigned(p, bram_address_width)) else (others => '0');
+	bram_g_data_in_b <= std_logic_vector(fg_freeze_a) &  std_logic_vector(fg_freeze_b) when bram_g_address_b_delay(pipeline_length) /= std_logic_vector(to_unsigned(p, bram_address_width)) else (others => '0');
 
 	-- Delay the write to g bram to wait for freeze pipeline to complete.
 	-- Also shifts the address by one to implement the shift of g
@@ -430,17 +504,27 @@ begin
 	small_polynomial_in_delay <= small_polynomial_in when rising_edge(clock);
 
 	-- Multiplication of f0*r[i]-g0*v[i]
-	modq_minus_product_inst_vr : entity work.modq_minus_product
+	modq_minus_product_inst_vr_a : entity work.modq_minus_product
 		port map(
 			clock         => clock,
 			reset         => reset,
-			data_in_a     => bram_r_data_out_a,
-			data_in_b     => bram_v_data_out_a,
-			f_zero        => f_zero,
-			g_zero        => g_zero,
-			output_freeze => vr_freeze
+			data_in_a     => bram_r_data_out_a(2*q_num_bits-1 downto q_num_bits),
+			data_in_b     => bram_v_data_out_a(2*q_num_bits-1 downto q_num_bits),
+			f_zero        => f0_a,
+			g_zero        => g0_a,
+			output_freeze => vr_freeze_a
 		);
-
+	modq_minus_product_inst_vr_b : entity work.modq_minus_product
+		port map(
+			clock         => clock,
+			reset         => reset,
+			data_in_a     => bram_r_data_out_a(q_num_bits-1 downto 0),
+			data_in_b     => bram_v_data_out_a(q_num_bits-1 downto 0),
+			f_zero        => f0_b,
+			g_zero        => g0_b,
+			output_freeze => vr_freeze_b
+		);
+	vr_freeze <= vr_freeze_a & vr_freeze_b;
 	delay_bram_r_port_b : process(clock, reset) is
 	begin
 		if reset = '1' then
@@ -457,7 +541,7 @@ begin
 	bram_rq_reciprocal_3_inst : entity work.bram_rq_reciprocal_3
 		generic map(
 			bram_address_width => bram_address_width,
-			bram_data_width    => q_num_bits
+			bram_data_width    =>  2 * q_num_bits
 		)
 		port map(
 			clock             => clock,

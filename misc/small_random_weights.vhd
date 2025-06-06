@@ -197,6 +197,7 @@ begin
 	-- Use only lower 2 bits
 	small_weights <= (signed(bram_data_out_a) and resize("011", 32)) - to_signed(1, 32);
 
+	
 	small_weights_out <= signed(small_weights(1 downto 0));
 
 end architecture RTL;

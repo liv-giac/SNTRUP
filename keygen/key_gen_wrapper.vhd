@@ -22,6 +22,7 @@ entity key_gen_wrapper is
 		random_small_poly      : in  std_logic_vector(3 downto 0);
 		random_enable          : out std_logic;
 		random_output          : in  std_logic_vector(31 downto 0);
+		random_output2         : in  std_logic_vector(31 downto 0);
 		to_sha                 : out sha_record_in_type;
 		from_sha               : in  sha_record_out_type;
 		to_encode_Rq           : out encode_Rq_in_type;
@@ -29,14 +30,16 @@ entity key_gen_wrapper is
 		to_rq_mult             : out rq_multiplication_in_type;
 		from_rq_mult           : in  rq_multiplication_out_type;
 		to_small_weights       : out small_random_weights_in_type;
-		from_small_weights     : in  small_random_weights_out_type
+		from_small_weights     : in  small_random_weights_out_type;
+		to_small_weights2       : out small_random_weights_in_type;
+		from_small_weights2     : in  small_random_weights_out_type
 	);
 end entity key_gen_wrapper;
 
 architecture RTL of key_gen_wrapper is
 	signal output_h       : std_logic_vector(q_num_bits - 1 downto 0);
 	signal output_h_valid : std_logic;
-	signal output_f       : std_logic_vector(1 downto 0);
+	signal output_f       : std_logic_vector(3 downto 0);
 	signal output_f_valid : std_logic;
 	signal output_g_recip : std_logic_vector(3 downto 0);
 	signal output_g_valid : std_logic;
@@ -64,6 +67,8 @@ architecture RTL of key_gen_wrapper is
 	signal m_input       : std_logic_vector(15 downto 0);
 
 	signal small_weights_random_enable : std_logic;
+	
+	signal random_small_enable_both : std_logic;
 	signal sk_random_enable            : std_logic;
 
 	signal output_f_encoded       : std_logic_vector(7 downto 0);
@@ -252,14 +257,16 @@ begin
 			output_f_valid              => output_f_valid,
 			output_g_recip              => output_g_recip,
 			output_g_valid              => output_g_valid,
-			random_small_enable         => random_small_enable,
+			random_small_enable         => random_small_enable_both,
 			random_small_poly           => random_small_poly,
-			small_weights_random_enable => small_weights_random_enable,
+			small_weights_random_enable_both => small_weights_random_enable,
 			small_weights_random_output => random_output,
 			to_rq_mult                  => to_rq_mult,
 			from_rq_mult                => from_rq_mult,
 			to_small_weights            => to_small_weights,
-			from_small_weights          => from_small_weights
+			from_small_weights          => from_small_weights,
+			to_small_weights2            => to_small_weights2,
+			from_small_weights2          => from_small_weights2
 		);
 
 	block_ram_buffer : entity work.block_ram
@@ -280,7 +287,7 @@ begin
 		);
 
 	buffer_data_in_a_shift <= std_logic_vector(resize(signed(output_h), q_num_bits + 1) + q12);
-	buffer_data_in_a       <= buffer_data_in_a_shift(q_num_bits - 1 downto 0);
+	buffer_data_in_a       <= buffer_data_in_a_shift( q_num_bits - 1 downto 0);
 	buffer_write_a         <= output_h_valid;
 
 	m_input <= std_logic_vector(to_unsigned(q, 16));
@@ -294,7 +301,7 @@ begin
 	encoded_pk_valid <= from_encode_Rq.output_valid;
 	done_pk          <= from_encode_Rq.done;
 
-	encode_R3_inst_f : entity work.encode_R3(RTL2)
+	encode_R3_inst_f : entity work.encode_R3_from_parallel(RTL)
 		port map(
 			clock        => clock,
 			reset        => reset,
