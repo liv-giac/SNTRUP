@@ -33,7 +33,7 @@ architecture RTL of rq_reciprocal_3 is
 		variable ai : integer := a;
 	begin
 		for i in 1 to q - 3 loop
-			report "ai= " & integer'image(ai) & " i=" & integer'image(i);
+			--report "ai= " & integer'image(ai) & " i=" & integer'image(i);
 			ai := ai * a;
 			while ai >= integer(ceil(real(q) / real(2))) loop
 				ai := ai - q;
