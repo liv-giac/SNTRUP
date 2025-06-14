@@ -87,6 +87,7 @@ begin
 					small_weights_valid     <= '0';
 					done                    <= '0';
 				when generating_elements =>
+					--report "generating f element "& integer'image(generate_counter+1);
 					if generate_counter = p - 1 then
 						state_weight <= pre_sort;
 					else
@@ -97,11 +98,13 @@ begin
 					random_enable           <= '1';
 					generate_counter        <= generate_counter + 1;
 				when pre_sort =>
+					---report "now sorting f coefficients";
 					state_weight                   <= sorting;
 					bram_write_enable_a_fsm <= '0';
 					random_enable           <= '0';
 				when sorting =>
 					if sorting_done = '1' then
+						---report "sorting done, now rounding";
 						state_weight            <= rounding;
 						sorting_start    <= '0';
 						rounding_counter <= 0;
@@ -194,6 +197,7 @@ begin
 	-- Use only lower 2 bits
 	small_weights <= (signed(bram_data_out_a) and resize("011", 32)) - to_signed(1, 32);
 
+	
 	small_weights_out <= signed(small_weights(1 downto 0));
 
 end architecture RTL;

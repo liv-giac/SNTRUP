@@ -37,7 +37,8 @@ entity ntru_prime_top is
 		public_key_out        : out std_logic_vector(7 downto 0);
 		public_key_out_valid  : out std_logic;
 		random_enable         : out std_logic;
-		random_output         : in  std_logic_vector(31 downto 0)
+		random_output         : in  std_logic_vector(31 downto 0);
+		random_output2         : in  std_logic_vector(31 downto 0)
 	);
 end entity ntru_prime_top;
 
@@ -111,9 +112,10 @@ architecture RTL of ntru_prime_top is
 	signal key_gen_encoded_pk_valid : std_logic;
 
 	signal key_gen_random_small_enable         : std_logic;
-	signal key_gen_random_small_poly           : std_logic_vector(1 downto 0);
+	signal key_gen_random_small_poly           : std_logic_vector(3 downto 0);
 	signal key_gen_small_weights_random_enable : std_logic;
 	signal key_gen_small_weights_random_output : std_logic_vector(31 downto 0);
+	signal key_gen_small_weights_random_output2 : std_logic_vector(31 downto 0);
 	signal key_gen_to_encode_Rq                : encode_Rq_in_type;
 	signal key_gen_from_encode_Rq              : encode_Rq_out_type;
 	signal key_gen_to_rq_mult                  : rq_multiplication_in_type;
@@ -148,10 +150,12 @@ begin
 
 	fsm_process : process(clock, reset) is
 	begin
+		 
 		if reset = '1' then
 			state_top <= IDLE;
 			ready     <= '0';
 			done      <= '0';
+			--random_enable <= '0';
 		elsif rising_edge(clock) then
 			case state_top is
 				when IDLE =>
@@ -162,6 +166,7 @@ begin
 						state_top <= DECAP;
 					end if;
 					if start_key_gen = '1' then
+						
 						state_top <= KEY_GEN;
 					end if;
 					if set_new_public_key = '1' and start_encap ='0' then
@@ -241,9 +246,10 @@ begin
 	key_decap_start_decap <= start_decap;
 
 	key_gen_start <= start_key_gen;
+	
+	key_gen_random_small_poly <= std_logic_vector(shift_right(unsigned(random_output and three_fffffff) * 3, 30)(1 downto 0) - 1) & std_logic_vector(shift_right(unsigned(random_output2 and three_fffffff) * 3, 30)(1 downto 0) - 1);
 
-	key_gen_random_small_poly <= std_logic_vector(shift_right(unsigned(random_output and three_fffffff) * 3, 30)(1 downto 0) - 1);
-
+	
 	public_key_out       <= key_gen_encoded_pk;
 	public_key_out_valid <= key_gen_encoded_pk_valid;
 
@@ -324,6 +330,7 @@ begin
 			random_small_poly      => key_gen_random_small_poly,
 			random_enable          => key_gen_small_weights_random_enable,
 			random_output          => key_gen_small_weights_random_output,
+			random_output2          => key_gen_small_weights_random_output2,
 			to_sha                 => key_gen_to_sha,
 			from_sha               => key_gen_from_sha,
 			to_encode_Rq           => key_gen_to_encode_Rq,
@@ -331,7 +338,9 @@ begin
 			to_rq_mult             => key_gen_to_rq_mult,
 			from_rq_mult           => key_gen_from_rq_mult,
 			to_small_weights       => key_gen_to_small_weights,
-			from_small_weights     => key_gen_from_small_weights
+			from_small_weights     => key_gen_from_small_weights,
+			to_small_weights2       => key_gen_to_small_weights,
+			from_small_weights2     => key_gen_from_small_weights
 		);
 
 	-----------------------------------------------------------------------------------------------

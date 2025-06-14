@@ -16,23 +16,25 @@ entity key_generation is
 		output_h                    : out std_logic_vector(q_num_bits - 1 downto 0);
 		output_h_valid              : out std_logic;
 		output_h_ack                : in  std_logic;
-		output_f                    : out std_logic_vector(1 downto 0);
+		output_f                    : out std_logic_vector(3 downto 0);
 		output_f_valid              : out std_logic;
-		output_g_recip              : out std_logic_vector(1 downto 0);
+		output_g_recip              : out std_logic_vector(3 downto 0);
 		output_g_valid              : out std_logic;
 		random_small_enable         : out std_logic;
-		random_small_poly           : in  std_logic_vector(1 downto 0);
-		small_weights_random_enable : out std_logic;
+		random_small_poly           : in  std_logic_vector(3 downto 0);
+		small_weights_random_enable_both : out std_logic;
 		small_weights_random_output : in  std_logic_vector(31 downto 0);
 		to_rq_mult                  : out rq_multiplication_in_type;
 		from_rq_mult                : in  rq_multiplication_out_type;
 		to_small_weights            : out small_random_weights_in_type;
-		from_small_weights          : in  small_random_weights_out_type
+		from_small_weights          : in  small_random_weights_out_type;
+		to_small_weights2            : out small_random_weights_in_type;
+		from_small_weights2          : in  small_random_weights_out_type
 	);
 end entity key_generation;
 
 architecture RTL of key_generation is
-
+	constant s : integer := 3;
 	type state_type is (init_state, gen_g, gen_g_done, inv_g, wait_inv_g, check_inv_g, gen_f, wait_gen_f, inv_f, inv_f_done1, inv_f_done2, mult_fg_init, mult_fg, done_state);
 	signal state_key_gen : state_type;
 
@@ -42,8 +44,8 @@ architecture RTL of key_generation is
 	signal random_small_counter_delay : std_logic_vector(p_num_bits - 1 downto 0);
 
 	signal r3_recip_start         : std_logic;
-	signal r3_recip_poly_in       : std_logic_vector(1 downto 0);
-	signal r3_recip_poly_out      : std_logic_vector(1 downto 0);
+	signal r3_recip_poly_in       : std_logic_vector(3 downto 0);
+	signal r3_recip_poly_out      : std_logic_vector(3 downto 0);
 	signal r3_recip_done          : std_logic;
 	signal r3_recip_is_invertable : std_logic;
 	signal r3_recip_ready         : std_logic;
@@ -53,11 +55,19 @@ architecture RTL of key_generation is
 	signal small_weights_valid : std_logic;
 	signal small_weights_out   : signed(1 downto 0);
 	signal small_weights_done  : std_logic;
-
+	signal small_weigh_start2   : std_logic;
+	signal small_weights_valid2 : std_logic;
+	signal small_weights_out2   : signed(1 downto 0);
+	signal small_weights_done2  : std_logic;
+	signal small_weights_random_enable2 : std_logic;
+	signal small_weights_random_enable : std_logic;
+	signal small_weights_done_both  : std_logic;
+	signal small_weights_valid_both : std_logic;
+	signal small_weights_out_both : signed(3 downto 0);
 	signal rq_recip3_start         : std_logic;
-	signal rq_recip3_small_poly_in : std_logic_vector(1 downto 0);
+	signal rq_recip3_small_poly_in : std_logic_vector(3 downto 0);
 	signal rq_recip3_ready         : std_logic;
-	signal rq_recip3_output_poly   : std_logic_vector(q_num_bits - 1 downto 0);
+	signal rq_recip3_output_poly   : std_logic_vector(2 * q_num_bits - 1 downto 0);
 	signal rq_recip3_output_valid  : std_logic;
 	signal rq_recip3_done          : std_logic;
 	signal rq_recip3_f_address     : std_logic_vector(p_num_bits - 1 downto 0);
@@ -73,23 +83,23 @@ architecture RTL of key_generation is
 	signal rq_mult_bram_f_address_b  : std_logic_vector(p_num_bits - 1 downto 0);
 	signal rq_mult_bram_f_data_out_b : std_logic_vector(q_num_bits - 1 downto 0);
 	signal rq_mult_bram_g_address_a  : std_logic_vector(p_num_bits - 1 downto 0);
-	signal rq_mult_bram_g_data_out_a : std_logic_vector(2 - 1 downto 0);
+	signal rq_mult_bram_g_data_out_a : std_logic_vector(1 downto 0);
 	signal rq_mult_bram_g_address_b  : std_logic_vector(p_num_bits - 1 downto 0);
-	signal rq_mult_bram_g_data_out_b : std_logic_vector(2 - 1 downto 0);
+	signal rq_mult_bram_g_data_out_b : std_logic_vector(1 downto 0);
 
 	signal bram_f_address_a  : std_logic_vector(p_num_bits - 1 downto 0);
 	signal bram_f_write_a    : std_logic;
-	signal bram_f_data_in_a  : std_logic_vector(q_num_bits - 1 downto 0);
-	signal bram_f_data_out_a : std_logic_vector(q_num_bits - 1 downto 0);
+	signal bram_f_data_in_a  : std_logic_vector(2 * q_num_bits - 1 downto 0);
+	signal bram_f_data_out_a : std_logic_vector(2 * q_num_bits - 1 downto 0);
 	signal bram_f_address_b  : std_logic_vector(p_num_bits - 1 downto 0);
 	signal bram_f_write_b    : std_logic;
-	signal bram_f_data_in_b  : std_logic_vector(q_num_bits - 1 downto 0);
-	signal bram_f_data_out_b : std_logic_vector(q_num_bits - 1 downto 0);
+	signal bram_f_data_in_b  : std_logic_vector(2 * q_num_bits - 1 downto 0);
+	signal bram_f_data_out_b : std_logic_vector(2 * q_num_bits - 1 downto 0);
 
 	signal bram_g_address_a  : std_logic_vector(p_num_bits - 1 downto 0);
 	signal bram_g_write_a    : std_logic;
-	signal bram_g_data_in_a  : std_logic_vector(2 - 1 downto 0);
-	signal bram_g_data_out_a : std_logic_vector(2 - 1 downto 0);
+	signal bram_g_data_in_a  : std_logic_vector(s downto 0);
+	signal bram_g_data_out_a : std_logic_vector(s downto 0);
 	signal bram_g_address_b  : std_logic_vector(p_num_bits - 1 downto 0);
 	signal bram_g_write_b    : std_logic;
 	signal bram_g_data_in_b  : std_logic_vector(2 - 1 downto 0);
@@ -125,6 +135,7 @@ begin
 			case state_key_gen is
 				when init_state =>
 					if start = '1' then
+						report "going into gen_f";
 						state_key_gen <= gen_f;
 					else
 						state_key_gen <= init_state;
@@ -132,7 +143,8 @@ begin
 					ready <= '1';
 					done  <= '0';
 				when gen_g =>
-					if random_small_counter = p - 1 then
+					report "  generating g element "& integer'image(random_small_counter+1);
+					if random_small_counter = p/2 then
 						state_key_gen <= gen_g_done;
 					else
 						state_key_gen <= gen_g;
@@ -144,6 +156,7 @@ begin
 				when gen_g_done =>
 				report "Starting inv_g-----------------";
 					state_key_gen           <= inv_g;
+					report "Starting inv_g-----------------"; 
 					random_small_enable_out <= '0';
 					random_small_counter    <= 0;
 				when inv_g =>
@@ -165,17 +178,20 @@ begin
 					end if;
 				when check_inv_g =>
 					if r3_recip_ready = '1' then
+						
 						state_key_gen  <= gen_g;
 						r3_recip_start <= '1';
 					else
 						state_key_gen <= check_inv_g;
 					end if;
 				when gen_f =>
+					report "gen_f";
 					state_key_gen     <= wait_gen_f;
 					small_weigh_start <= '1';
 					ready             <= '0';
 				when wait_gen_f =>
 					if small_weights_done = '1' then
+						report "going into gen_g";
 						state_key_gen  <= gen_g;
 						r3_recip_start <= '1';
 					end if;
@@ -188,6 +204,7 @@ begin
 						state_key_gen <= inv_f_done1;
 					end if;
 				when inv_f_done1 =>
+					report "Done inv_f";
 					state_key_gen <= inv_f_done2;
 				when inv_f_done2 =>
 					state_key_gen <= mult_fg_init;
@@ -210,8 +227,8 @@ begin
 
 	r3_recip_poly_in <= random_small_poly;
 
-	rq_recip3_start         <= small_weights_valid when rising_edge(clock);
-	rq_recip3_small_poly_in <= std_logic_vector(small_weights_out) when rising_edge(clock); -- TODO is this clock really needed?
+	rq_recip3_start         <= small_weights_valid_both when rising_edge(clock);
+	rq_recip3_small_poly_in <= std_logic_vector(small_weights_out_both) when rising_edge(clock); -- TODO is this clock really needed?
 
 	-- rq_reciprocal outputs highest degree coeffiencts first, they have to put at high address
 	f_address_counter : process(clock) is
@@ -232,16 +249,16 @@ begin
 	bram_f_address_a <= rq_recip3_f_address when state_key_gen /= mult_fg else rq_mult_bram_f_address_a;
 
 	bram_f_address_b <= rq_mult_bram_f_address_b;
-
-	rq_mult_bram_f_data_out_a <= bram_f_data_out_a;
-	rq_mult_bram_f_data_out_b <= bram_f_data_out_b;
+				--TEMP
+	rq_mult_bram_f_data_out_a <= bram_f_data_out_a(q_num_bits-1 downto 0);
+	rq_mult_bram_f_data_out_b <= bram_f_data_out_b(q_num_bits-1 downto 0);
 
 	output_h           <= rq_mult_output;
 	output_h_valid     <= rq_mult_output_valid;
 	rq_mult_output_ack <= '1'; -- output_h_ack;
 
-	output_f       <= std_logic_vector(small_weights_out);
-	output_f_valid <= small_weights_valid;
+	output_f       <= std_logic_vector(small_weights_out_both);
+	output_f_valid <= small_weights_valid_both;
 
 	bram_g_write_a      <= random_small_enable_out; -- when rising_edge(clock);
 	random_small_enable <= random_small_enable_out;
@@ -251,13 +268,14 @@ begin
 	bram_g_address_a <= random_small_counter_delay when state_key_gen /= mult_fg else rq_mult_bram_g_address_a;
 	bram_g_address_b <= rq_mult_bram_g_address_b;
 
-	bram_g_data_in_a <= random_small_poly;
+
+	bram_g_data_in_a <= random_small_poly(3 downto 0);
 
 	bram_g_write_b <= '0';
 	bram_f_write_b <= '0';
-
-	rq_mult_bram_g_data_out_a <= bram_g_data_out_a;
-	rq_mult_bram_g_data_out_b <= bram_g_data_out_b;
+ ------TEMP
+	rq_mult_bram_g_data_out_a <= bram_g_data_out_a(1 downto 0);
+	rq_mult_bram_g_data_out_b <= bram_g_data_out_b(1 downto 0);
 
 	output_g_valid <= r3_recip_output_valid and r3_recip_is_invertable;
 	output_g_recip <= r3_recip_poly_out;
@@ -283,6 +301,19 @@ begin
 	small_weights_out           <= from_small_weights.small_weights_out;
 	small_weights_valid         <= from_small_weights.small_weights_valid;
 
+	to_small_weights2.random_output <= small_weights_random_output;
+	to_small_weights2.start         <= small_weigh_start;
+
+	small_weights_done2         <= from_small_weights2.done;
+	small_weights_random_enable2 <= from_small_weights2.random_enable;
+	small_weights_out2           <= from_small_weights2.small_weights_out;
+	small_weights_valid2         <= from_small_weights2.small_weights_valid;
+
+	small_weights_out_both <= small_weights_out & small_weights_out2;
+	small_weights_done_both <= small_weights_done AND small_weights_done2;
+	small_weights_valid_both <= small_weights_valid AND small_weights_valid2;
+	small_weights_random_enable <= small_weights_random_enable2 AND small_weights_random_enable;
+
 	rq_reciprocal_3_inst : entity work.rq_reciprocal_3
 		port map(
 			clock               => clock,
@@ -294,7 +325,8 @@ begin
 			output_valid        => rq_recip3_output_valid,
 			done                => rq_recip3_done
 		);
-
+	--- to rq mult i give start, output ack, and fa fb ga gb data out.
+	-- i get back ready, valid, output, done and fa fb ga gb addresses
 	to_rq_mult.start             <= rq_mult_start;
 	to_rq_mult.output_ack        <= rq_mult_output_ack;
 	to_rq_mult.bram_f_data_out_a <= rq_mult_bram_f_data_out_a;
@@ -314,7 +346,7 @@ begin
 	block_ram_f : entity work.block_ram
 		generic map(
 			ADDRESS_WIDTH => p_num_bits,
-			DATA_WIDTH    => q_num_bits
+			DATA_WIDTH    => 2 * q_num_bits
 		)
 		port map(
 			clock      => clock,
@@ -331,7 +363,7 @@ begin
 	block_ram_g : entity work.block_ram
 		generic map(
 			ADDRESS_WIDTH => p_num_bits,
-			DATA_WIDTH    => 2
+			DATA_WIDTH    => 4
 		)
 		port map(
 			clock      => clock,

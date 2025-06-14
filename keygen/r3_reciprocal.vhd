@@ -361,7 +361,7 @@ report "DELTA UPDATE: New delta=" & integer'image(to_integer(delta));
 
 				end if;
 
-				if counter_fg + (b+1) > p + 1 then
+			if counter_fg + (b+1) > p + 1 then
 							extra := (p+1) mod (b+1);
 							
 						else

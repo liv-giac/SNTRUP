@@ -5,8 +5,8 @@ use ieee.numeric_std.all;
 -- Generic dual port, single clock block RAM
 entity block_ram is
 	Generic(
-		ADDRESS_WIDTH : integer := 8;
-		DATA_WIDTH    : integer := 8;
+		ADDRESS_WIDTH : integer := 16;
+		DATA_WIDTH    : integer := 16;
 		DUAL_PORT     : boolean := TRUE
 	);
 	Port(clock      : in  STD_LOGIC;
